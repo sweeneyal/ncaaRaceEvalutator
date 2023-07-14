@@ -1,9 +1,20 @@
 % /////////////////////////////////////////////////////////////////////////////////////////////////////////////////// %
 
+% Primary function definition. Runs the NCAA Race Evaluator tool.
+% Arguments:
+%   'numThreads' - integer number of threads to generate for each parallel execution.
 function Results = NcaaRaceEvaluator(varargin)
+    numThreads = 1;
+    for i = 1:2:length(varargin)
+        switch(varargin{i})
+            case 'numThreads'
+                numThreads = varargin{i + 1};
+        end
+    end
+
     % --------------------------------------------------------------------------------------------------------------- %
 
-    % This is the NCAA Race Evaluator main function.
+    % Print startup introduction.
     Introduction();
 
     Print('Reading NCAA D1 2019 Cross Country Championship Results...');
@@ -11,6 +22,7 @@ function Results = NcaaRaceEvaluator(varargin)
     skipRaces       = exist('analysis/racedata.mat', 'file');
     skipPerformance = exist('analysis/performancedata.mat', 'file');
     options         = weboptions('Timeout',45);
+    Results         = struct();
 
     t0 = tic;
     if (~skipAthletes)
@@ -33,7 +45,7 @@ function Results = NcaaRaceEvaluator(varargin)
         % Create struct of all athletes with their names, identifiers, and team ran for this season.
         Print('Collecting initial data on athletes...');
         [ids,  teams, names] = deal(cell(size(links)));
-        CreateParallelPool(3);
+        CreateParallelPool(numThreads);
         parfor i = 1:length(links)
             % The TFRRS athlete links on the championship page contains an identifier, team, and name in that order
             tokens = regexpi(links(i), 'https://xc.tfrrs.org/athletes/(\d+)/(.*)/(.*).html', 'tokens');
@@ -47,7 +59,7 @@ function Results = NcaaRaceEvaluator(varargin)
         end
         KillParallelPool();
     
-        Athletes      = struct();
+        Athletes       = struct();
         Athletes.Ids   = cellfun(@(x) str2double(x), ids, 'UniformOutput',true);
         Athletes.Teams = teams;
         Athletes.Names = names;
@@ -59,9 +71,10 @@ function Results = NcaaRaceEvaluator(varargin)
         % For each athlete, find their results page and parse it for useful data.
         Print('Getting all results links for athletes...');
         [allRaceIds, allRaces, allRaceLinks] = deal(cell(size(Athletes.Ids)));
-        CreateParallelPool(3);
+        CreateParallelPool(numThreads);
         parfor i = 1:length(Athletes.Ids)
-            athleteHtml = webread(Athletes.Links{i}, options);
+            % TODO: Consider slicing the Athletes struct into portions for each parfor.
+            athleteHtml = webread(Athletes.Links{i}, options); %#ok<PFBNS> 
             tree        = htmlTree(athleteHtml);
             selector    = 'A';
             subtrees    = findElement(tree,selector);
@@ -113,7 +126,7 @@ function Results = NcaaRaceEvaluator(varargin)
         save('analysis/athletedata');
     else
         Print('Past results found. Loading past results...');
-        load('analysis/athletedata.mat');
+        load('analysis/athletedata.mat'); %#ok<LOAD> 
         Print('Past results loaded.');
     end
 
@@ -132,6 +145,7 @@ function Results = NcaaRaceEvaluator(varargin)
         Print('List of unique races compiled.');
 
         Print('Collecting all race data...');
+        % TODO: Consider making this a parfor
         RaceData = cell(size(raceIds));
         for i = 1:length(raceIds)
             raceStr    = webread(raceLinks{i}, options);
@@ -161,11 +175,12 @@ function Results = NcaaRaceEvaluator(varargin)
         Print('Race data saved.');
     else
         Print('Past results found. Loading past results...');
-        load('analysis/racedata.mat');
+        load('analysis/racedata.mat'); %#ok<LOAD> 
         Print('Past results loaded.');
     end
 
     if(~skipPerformance) 
+        % TODO: Finish this.
         % Evaluate all running data.
         Print('Starting evaluation of races and running data...');
 
@@ -203,12 +218,20 @@ function Results = NcaaRaceEvaluator(varargin)
 
 end
 
+% Fancy introduction function.
+% Arguments:
+%   None
 function Introduction()
     PrintDashes(80);
     Print('\tNCAA Race Evaluator v%d.%d.%d', 1,0,0);
     PrintDashes(80);
 end
 
+% Standardized printing function.
+% Takes string input and appends a newline to the end of the string if no newline currently exists.
+% Arguments:
+%   str      - String to print
+%   varargin - Standard formatting arguments to fprintf.
 function Print(str, varargin)
     if (~strcmpi(str(end-1:end), '\n'))
         str(end+1:end+2) = '\n';
@@ -216,13 +239,22 @@ function Print(str, varargin)
     fprintf(1, str, varargin{:});
 end
 
+% Dash printing function.
+% Prints up to the number of dashes.
+% Arguments:
+%   numDashes - number of dashes to print.
 function PrintDashes(numDashes)
+    dashes = blanks(numDashes);
     for i = 1:numDashes
         dashes(i) = '-';
     end
     disp(dashes);
 end
 
+% HTML Table parsing function.
+% Reads column names from table header using regex, and then parses table data to produce a MATLAB table.
+% Arguments:
+%   html - HTML text pulled from website.
 function Table = ReadHtmlTable(html)
     % Read the columns from the table header.
     expression = '<(thead).*?</\1>';
