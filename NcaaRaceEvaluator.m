@@ -55,7 +55,7 @@ function Results = NcaaRaceEvaluator(varargin)
         Print('Collecting initial data on athletes...');
         [ids,  teams, names] = deal(cell(size(links)));
         CreateParallelPool(numThreads);
-        parfor i = 1:length(links)
+        parfor (i = 1:length(links), numThreads)
             % The TFRRS athlete links on the championship page contains an identifier, team, and name in that order
             tokens = regexpi(links(i), 'https://www.tfrrs.org/athletes/(\d+)/(.*)/(.*).html', 'tokens');
             tokens = cellstr(tokens{:});
@@ -81,7 +81,7 @@ function Results = NcaaRaceEvaluator(varargin)
         Print('Getting all results links for athletes...');
         [allRaceIds, allRaces, allRaceLinks] = deal(cell(size(Athletes.Ids)));
         CreateParallelPool(numThreads);
-        parfor i = 1:length(Athletes.Ids)
+        parfor (i = 1:length(Athletes.Ids), numThreads)
             % TODO: Consider slicing the Athletes struct into portions for each parfor.
             athleteHtml = webread(Athletes.Links{i}, options); %#ok<PFBNS> 
             tree        = htmlTree(athleteHtml);
