@@ -4,11 +4,20 @@
 % Arguments:
 %   'numThreads' - integer number of threads to generate for each parallel execution.
 function Results = NcaaRaceEvaluator(varargin)
-    numThreads = 1;
+    numThreads     = 1;
+    getAthletes    = false;
+    getRaces       = false;
+    getPerformance = false;
     for i = 1:2:length(varargin)
         switch(varargin{i})
             case 'numThreads'
                 numThreads = varargin{i + 1};
+            case 'getAthletes'
+                getAthletes = varargin{i + 1};
+            case 'getRaces'
+                getRaces = varargin{i + 1};
+            case 'getPerformance'
+                getPerformance = varargin{i + 1};
         end
     end
 
@@ -18,9 +27,9 @@ function Results = NcaaRaceEvaluator(varargin)
     Introduction();
 
     Print('Reading NCAA D1 2019 Cross Country Championship Results...');
-    skipAthletes    = exist('analysis/athletedata.mat', 'file');
-    skipRaces       = exist('analysis/racedata.mat', 'file');
-    skipPerformance = exist('analysis/performancedata.mat', 'file');
+    skipAthletes    = exist('analysis/athletedata.mat', 'file') && ~getAthletes; 
+    skipRaces       = exist('analysis/racedata.mat', 'file') && ~getRaces;
+    skipPerformance = exist('analysis/performancedata.mat', 'file') && ~getPerformance;
     options         = weboptions('Timeout',45);
     Results         = struct();
 
@@ -48,7 +57,7 @@ function Results = NcaaRaceEvaluator(varargin)
         CreateParallelPool(numThreads);
         parfor i = 1:length(links)
             % The TFRRS athlete links on the championship page contains an identifier, team, and name in that order
-            tokens = regexpi(links(i), 'https://xc.tfrrs.org/athletes/(\d+)/(.*)/(.*).html', 'tokens');
+            tokens = regexpi(links(i), 'https://www.tfrrs.org/athletes/(\d+)/(.*)/(.*).html', 'tokens');
             tokens = cellstr(tokens{:});
     
             [ids{i}, teams{i}, names{i}] = tokens{:};
@@ -87,7 +96,7 @@ function Results = NcaaRaceEvaluator(varargin)
             [ids, races] = deal(cell(size(links)));
             validIndices            = false(size(links));
             for j = 1:length(links)
-                tokens = regexpi(links(j), 'https://xc.tfrrs.org/results/xc/(\d+)/(.*)', 'tokens');
+                tokens = regexpi(links(j), 'https://www.tfrrs.org/results/xc/(\d+)/(.*)', 'tokens');
                 tokens = cellstr(tokens{:});
     
                 % Sometimes the links contain a '?' character followed by the meet ID, we can ignore this because this race
